@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成本台账看板</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            padding: 16px;
+            padding-bottom: 80px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .stats {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .stat-card {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1890ff;
+        }
+        .stat-card .label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        .stat-card.warning .value { color: #faad14; }
+        .stat-card.danger .value { color: #ff4d4f; }
+        
+        .project-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .project-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border-left: 4px solid transparent;
+        }
+        .project-card:active {
+            transform: scale(0.98);
+        }
+        .project-card.warning { border-left-color: #faad14; }
+        .project-card.danger { border-left-color: #ff4d4f; }
+        
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        .project-info h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .project-info .manager {
+            font-size: 12px;
+            color: #666;
+        }
+        .project-stage {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #e6f7ff;
+            color: #1890ff;
+        }
+        
+        .project-budget {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+        .budget-item {
+            text-align: center;
+        }
+        .budget-item .label {
+            color: #999;
+            font-size: 11px;
+        }
+        .budget-item .value {
+            font-weight: 600;
+            margin-top: 2px;
+        }
+        
+        .usage-bar {
+            height: 6px;
+            background: #f0f0f0;
+            border-radius: 3px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+        .usage-bar .fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+        .usage-bar .fill.normal { background: #52c41a; }
+        .usage-bar .fill.warning { background: #faad14; }
+        .usage-bar .fill.danger { background: #ff4d4f; }
+        
+        /* 详情页 */
+        .detail-view {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #f5f7fa;
+            z-index: 100;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        .detail-view.active { display: block; }
+        
+        .detail-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .back-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: white;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .detail-header h2 {
+            font-size: 18px;
+            flex: 1;
+        }
+        
+        .detail-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .detail-card h4 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-row .name {
+            color: #666;
+            min-width: 80px;
+        }
+        .detail-row .budget-val {
+            text-align: right;
+            min-width: 90px;
+        }
+        .detail-row .actual-val {
+            text-align: right;
+            min-width: 90px;
+        }
+        .detail-row .rate {
+            text-align: right;
+            min-width: 60px;
+            font-weight: 600;
+        }
+        .detail-row .rate.normal { color: #52c41a; }
+        .detail-row .rate.warning { color: #faad14; }
+        .detail-row .rate.danger { color: #ff4d4f; }
+        
+        /* 导入相关 */
+        .import-area {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+        }
+        .import-btn {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #1890ff;
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .import-tip {
+            background: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #666;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .import-area:hover .import-tip {
+            display: block;
+        }
+        
+        /* 搜索 */
+        .search-bar {
+            margin-bottom: 16px;
+        }
+        .search-bar input {
+            width: 100%;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 24px;
+            font-size: 14px;
+            background: white;
+        }
+        .search-bar input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #1890ff;
+        }
+        
+        /* 空状态 */
+        .empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        /* 隐藏的文件输入 */
+        #fileInput {
+            display: none;
+        }
+        
+        /* 标签筛选 */
+        .filter-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+        .filter-tab {
+            padding: 6px 16px;
+            border-radius: 16px;
+            background: white;
+            border: none;
+            font-size: 13px;
+            color: #666;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .filter-tab.active {
+            background: #1890ff;
+            color: white;
+        }
+        
+        /* 加载状态 */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        /* 更新时间样式 */
+        .update-info {
+            font-size: 12px;
+            color: #999;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .update-info::before {
+            content: "🕐";
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>成本台账看板</h1>
+        <span class="update-info" id="updateTime"></span>
+    </div>
+    
+    <div class="stats" id="statsContainer">
+        <!-- 统计卡片 -->
+    </div>
+    
+    <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="搜索项目编号或经理...">
+    </div>
+    
+    <div class="filter-tabs" id="filterTabs">
+        <button class="filter-tab active" data-filter="all">全部</button>
+        <button class="filter-tab" data-filter="danger">超预算(>90%)</button>
+        <button class="filter-tab" data-filter="warning">临近超限(60-90%)</button>
+        <button class="filter-tab" data-filter="normal">正常(<60%)</button>
+    </div>
+    
+    <div class="project-list" id="projectList">
+        <div class="loading">加载中...</div>
+    </div>
+    
+    <!-- 详情页 -->
+    <div class="detail-view" id="detailView">
+        <div class="detail-header">
+            <button class="back-btn" onclick="closeDetail()">←</button>
+            <h2 id="detailTitle">项目详情</h2>
+        </div>
+        <div id="detailContent"></div>
+    </div>
+    
+    <!-- 导入按钮 -->
+    <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileImport(event)">
+    <div class="import-area">
+        <div class="import-tip">导入新数据后会生成更新后的JSON文件</div>
+        <button class="import-btn" onclick="document.getElementById('fileInput').click()">↻</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        let allProjects = [];
+        let currentFilter = 'all';
+        let lastUpdateTime = '';
+        
+        // 格式化金额
+        function formatMoney(val) {
+            if (val === null || val === undefined || isNaN(val)) return '-';
+            if (val >= 10000) {
+                return (val / 10000).toFixed(1) + '万';
+            }
+            return val.toFixed(0);
+        }
+        
+        // 获取使用率状态
+        function getUsageStatus(rate) {
+            if (rate === null || rate === undefined || isNaN(rate)) return 'normal';
+            if (rate > 0.9) return 'danger';
+            if (rate > 0.6) return 'warning';
+            return 'normal';
+        }
+        
+        // 渲染统计卡片
+        function renderStats() {
+            const total = allProjects.length;
+            const danger = allProjects.filter(p => getUsageStatus(p.usageRate) === 'danger').length;
+            const warning = allProjects.filter(p => getUsageStatus(p.usageRate) === 'warning').length;
+            
+            document.getElementById('statsContainer').innerHTML = `
+                <div class="stat-card">
+                    <div class="value">${total}</div>
+                    <div class="label">项目总数</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="value">${danger}</div>
+                    <div class="label">超预算</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="value">${warning}</div>
+                    <div class="label">临近超限</div>
+                </div>
+            `;
+        }
+        
+        // 渲染项目列表
+        function renderProjectList() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            let filtered = allProjects.filter(p => {
+                const matchSearch = !searchTerm || 
+                    (p.projectCode && p.projectCode.toLowerCase().includes(searchTerm)) ||
+                    (p.manager && p.manager.toLowerCase().includes(searchTerm));
+                
+                const status = getUsageStatus(p.usageRate);
+                const matchFilter = currentFilter === 'all' || status === currentFilter;
+                
+                return matchSearch && matchFilter;
+            });
+            
+            if (filtered.length === 0) {
+                document.getElementById('projectList').innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">📋</div>
+                        <div>暂无匹配的项目</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            document.getElementById('projectList').innerHTML = filtered.map((p, idx) => {
+                const status = getUsageStatus(p.usageRate);
+                const ratePercent = p.usageRate ? (p.usageRate * 100).toFixed(1) : '0';
+                
+                return `
+                    <div class="project-card ${status}" onclick="showDetail(${p.originalIndex})">
+                        <div class="project-header">
+                            <div class="project-info">
+                                <h3>${p.projectCode || '未命名项目'}</h3>
+                                <div class="manager">${p.manager || '-'} | ${p.stage || '-'}</div>
+                            </div>
+                            <span class="project-stage">${ratePercent}%</span>
+                        </div>
+                        <div class="project-budget">
+                            <div class="budget-item">
+                                <div class="label">预算</div>
+                                <div class="value">${formatMoney(p.totalBudget)}</div>
+                            </div>
+                            <div class="budget-item">
+                                <div class="label">发生</div>
+                                <div class="value">${formatMoney(p.totalActual)}</div>
+                            </div>
+                            <div class="budget-item">
+                                <div class="label">剩余</div>
+                                <div class="value">${formatMoney(p.totalBudget - p.totalActual)}</div>
+                            </div>
+                        </div>
+                        <div class="usage-bar">
+                            <div class="fill ${status}" style="width: ${Math.min(ratePercent, 100)}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 显示详情
+        function showDetail(index) {
+            const p = allProjects.find(item => item.originalIndex === index);
+            if (!p) return;
+            
+            document.getElementById('detailTitle').textContent = p.projectCode || '项目详情';
+            
+            const categories = [
+                { name: '材料', budget: p.budgetMaterials, actual: p.actualMaterials },
+                { name: '技术服务', budget: p.budgetTech, actual: p.actualTech },
+                { name: '试验', budget: p.budgetTest, actual: p.actualTest },
+                { name: '人工+制造', budget: p.budgetLabor, actual: p.actualLabor },
+                { name: '差旅', budget: p.budgetTravel, actual: p.actualTravel },
+                { name: '招待', budget: p.budgetEntertain, actual: p.actualEntertain },
+                { name: '招投标', budget: p.budgetBidding, actual: p.actualBidding },
+                { name: '商务', budget: p.budgetBusiness, actual: p.actualBusiness },
+                { name: '其他', budget: p.budgetOther, actual: p.actualOther }
+            ];
+            
+            let rowsHtml = categories.map(cat => {
+                const rate = cat.budget && cat.budget > 0 ? cat.actual / cat.budget : 0;
+                const ratePercent = (rate * 100).toFixed(1);
+                const status = getUsageStatus(rate);
+                
+                return `
+                    <div class="detail-row">
+                        <span class="name">${cat.name}</span>
+                        <span class="budget-val">${formatMoney(cat.budget)}</span>
+                        <span class="actual-val">${formatMoney(cat.actual)}</span>
+                        <span class="rate ${status}">${ratePercent}%</span>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('detailContent').innerHTML = `
+                <div class="detail-card">
+                    <h4>基本信息</h4>
+                    <div class="detail-row">
+                        <span class="name">项目经理</span>
+                        <span>${p.manager || '-'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="name">项目阶段</span>
+                        <span>${p.stage || '-'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="name">总预算</span>
+                        <span style="font-weight: 600">${formatMoney(p.totalBudget)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="name">累计发生</span>
+                        <span style="font-weight: 600">${formatMoney(p.totalActual)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="name">预算使用率</span>
+                        <span style="font-weight: 600; color: ${getUsageStatus(p.usageRate) === 'danger' ? '#ff4d4f' : getUsageStatus(p.usageRate) === 'warning' ? '#faad14' : '#52c41a'}">
+                            ${p.usageRate ? (p.usageRate * 100).toFixed(1) : '0'}%
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="detail-card">
+                    <h4>分项明细</h4>
+                    <div class="detail-row" style="color: #999; font-size: 12px;">
+                        <span class="name">分项</span>
+                        <span class="budget-val">预算</span>
+                        <span class="actual-val">发生</span>
+                        <span class="rate">使用率</span>
+                    </div>
+                    ${rowsHtml}
+                </div>
+                
+                ${p.remark ? `
+                <div class="detail-card">
+                    <h4>备注</h4>
+                    <div style="font-size: 14px; color: #666;">${p.remark}</div>
+                </div>
+                ` : ''}
+            `;
+            
+            document.getElementById('detailView').classList.add('active');
+        }
+        
+        function closeDetail() {
+            document.getElementById('detailView').classList.remove('active');
+        }
+        
+        // 加载已保存的数据
+        async function loadSavedData() {
+            try {
+                const response = await fetch('data.json?t=' + Date.now());
+                if (!response.ok) {
+                    throw new Error('未找到数据文件');
+                }
+                const data = await response.json();
+                
+                allProjects = data.projects.map((p, idx) => ({
+                    ...p,
+                    originalIndex: idx
+                }));
+                lastUpdateTime = data.updateTime;
+                
+                document.getElementById('updateTime').textContent = lastUpdateTime || '未知';
+                renderStats();
+                renderProjectList();
+            } catch (err) {
+                console.log('加载已有数据失败，请导入Excel文件', err);
+                document.getElementById('projectList').innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">📊</div>
+                        <div>暂无数据</div>
+                        <div style="font-size: 12px; color: #999; margin-top: 8px;">点击右下角按钮导入Excel文件</div>
+                    </div>
+                `;
+            }
+        }
+        
+        // 处理文件导入
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 读取第一个sheet
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                    
+                    // 解析数据
+                    const projects = parseExcelData(jsonData);
+                    
+                    // 生成新的JSON数据
+                    const newData = {
+                        updateTime: new Date().toLocaleString('zh-CN', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }),
+                        totalProjects: projects.length,
+                        projects: projects
+                    };
+                    
+                    // 下载新的JSON文件
+                    downloadJson(newData);
+                    
+                    // 更新当前页面数据
+                    allProjects = projects.map((p, idx) => ({
+                        ...p,
+                        originalIndex: idx
+                    }));
+                    lastUpdateTime = newData.updateTime;
+                    document.getElementById('updateTime').textContent = lastUpdateTime;
+                    
+                    renderStats();
+                    renderProjectList();
+                    
+                } catch (err) {
+                    alert('导入失败：' + err.message);
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = '';
+        }
+        
+        // 解析Excel数据
+        function parseExcelData(rows) {
+            const projects = [];
+            
+            for (let i = 2; i < rows.length; i++) {
+                const row = rows[i];
+                if (!row || !row[0]) continue;
+                
+                const project = {
+                    manager: row[1] || '',
+                    projectCode: row[2] || '',
+                    stage: row[3] || '',
+                    
+                    budgetMaterials: parseFloat(row[4]) || 0,
+                    budgetTech: parseFloat(row[5]) || 0,
+                    budgetTest: parseFloat(row[6]) || 0,
+                    budgetLabor: parseFloat(row[7]) || 0,
+                    budgetTravel: parseFloat(row[8]) || 0,
+                    budgetEntertain: parseFloat(row[9]) || 0,
+                    budgetBidding: parseFloat(row[10]) || 0,
+                    budgetBusiness: parseFloat(row[11]) || 0,
+                    budgetOther: parseFloat(row[12]) || 0,
+                    totalBudget: parseFloat(row[13]) || 0,
+                    
+                    actualMaterials: parseFloat(row[14]) || 0,
+                    actualTech: parseFloat(row[15]) || 0,
+                    actualTest: parseFloat(row[16]) || 0,
+                    actualLabor: parseFloat(row[17]) || 0,
+                    actualTravel: parseFloat(row[18]) || 0,
+                    actualEntertain: parseFloat(row[19]) || 0,
+                    actualBidding: parseFloat(row[20]) || 0,
+                    actualBusiness: parseFloat(row[21]) || 0,
+                    actualOther: parseFloat(row[22]) || 0,
+                    totalActual: parseFloat(row[23]) || 0,
+                    
+                    usageRate: parseFloat(row[24]) || 0,
+                    remark: row[25] || ''
+                };
+                
+                if (project.projectCode || project.totalBudget > 0) {
+                    projects.push(project);
+                }
+            }
+            
+            return projects;
+        }
+        
+        // 下载JSON文件
+        function downloadJson(data) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'data.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            alert('数据解析成功！\n\n请将下载的 data.json 文件替换到网页同目录下，这样其他人打开网页也能看到最新数据。');
+        }
+        
+        // 搜索事件
+        document.getElementById('searchInput').addEventListener('input', renderProjectList);
+        
+        // 筛选事件
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                currentFilter = this.dataset.filter;
+                renderProjectList();
+            });
+        });
+        
+        // 页面加载时读取已保存的数据
+        loadSavedData();
+    </script>
+</body>
+</html>
